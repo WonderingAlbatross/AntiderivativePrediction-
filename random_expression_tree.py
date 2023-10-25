@@ -2,49 +2,60 @@ import random
 element = ["+","*","^","-","/","Sqrt","Exp","Log","Sin","Cos","ArcSin","ArcTan","Erf","X","1"]
 
 weight = [10,20,1,10,10,3,5,3,3,3,1,1,1,10,20]
-level = {"+": 1, "*": 2, "^": 20, "-": 1, "/": 3, "Sqrt": 15, "Exp": 10, "Log": 10, "Sin": 5, "Cos": 5, "ArcSin": 25, "ArcTan": 25, "Erf": 25}
+level = {"+": 5, "*": 5, "^": 20, "-": 1, "/": 3, "Sqrt": 15, "Exp": 10, "Log": 10, "Sin": 5, "Cos": 5, "ArcSin": 25, "ArcTan": 25, "Erf": 25}
 inverse = {"-":"-","/":"/","Exp":"Log","Log":"Exp","Sin":"ArcSin"}
 
 
 new_term_rate_for_abelian_operators = 1-1/2
 non_const_exp_rate = 0.2
-non_x_rate_for_complicated_expressions = 0.3
+non_x_rate_for_complicated_expressions = 0.9
 max_level = 30
 
 
 
 
 class expression_tree:
-	def __init__(self,lv = 0, expression = ""):
+	def __init__(self,lv = 0, expression = "",forbid = []):
 		self.level = lv
 		self.next = []
+		self.expression = ""
 		if expression:
 			self.expression = expression
 		else:
-			if lv > max_level:
-				self.expression = random.choices(element[-2:],weight[-2:])[0]
-			else:
-				self.expression = random.choices(element,weight)[0]
-
-				self.generate_next(self.expression)
+			while not self.expression or self.expression in forbid:
+				if lv > max_level:
+					self.expression = random.choices(element[-2:],weight[-2:])[0]
+				else:
+					self.expression = random.choices(element,weight)[0]
+		self.generate_next(self.expression)
 
 	def generate_next(self,expression):
 		if expression in ("+","*"):
-			self.next = [expression_tree(lv = level[expression]+self.level),expression_tree(lv = level[expression]+self.level)]
+			self.next = [expression_tree(lv = level[expression]+self.level,forbid = [expression])]
+			self.next.append(expression_tree(lv = level[expression]+self.level,forbid = [expression]))
 			while(random.random()<new_term_rate_for_abelian_operators):
-				self.next.append(expression_tree(level[expression]+self.level))
-		if expression == "^":
+				self.next.append(expression_tree(lv = level[expression]+self.level,forbid = [expression]))
+		elif expression == "^":
 			if random.random()>non_const_exp_rate:
-				self.next = [expression_tree(lv = level[expression]+self.level),expression_tree(expression = "K")]
+				self.next = [expression_tree(lv = level[expression]+self.level),expression_tree(lv = self.level,expression = "K")]
 			else:
 				self.next = [expression_tree(lv = level[expression]+self.level),expression_tree(lv = level[expression]+self.level)]
-		if expression in ("-","/"):
-			self.next = [expression_tree(lv = level[expression]+self.level)]
-		if expression in ("Sqrt","Exp","Log","Sin","Cos","ArcSin","ArcTan","Erf"):
-			if random.random()>non_x_rate_for_complicated_expressions:
-				self.next = [expression_tree(expression = "X")]
-			else:
-				self.next = [expression_tree(lv = level[expression]+self.level)]			
+		elif expression in ("-","/","Sqrt","Exp","Log","Sin","Cos","ArcSin","ArcTan","Erf"):
+			self.expression = ""
+			while expression in ("-","/","Sqrt","Exp","Log","Sin","Cos","ArcSin","ArcTan","Erf"):
+				self.level += level[expression]
+				self.expression += "," + expression
+				if self.level > max_level:
+					expression = "X"
+				elif expression in ("Sqrt","Exp","Log","Sin","Cos","ArcSin","ArcTan","Erf") and random.random()>non_x_rate_for_complicated_expressions:
+					expression = "X"
+				else:
+					expression = random.choices(element,weight)[0]
+			self.expression = self.simplify(self.expression)
+			self.next = [expression_tree(lv = self.level,expression = expression)]
+	def simplify(self,expression):
+		return expression
+		
 
 
 
