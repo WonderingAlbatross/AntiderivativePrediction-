@@ -9,7 +9,7 @@ inverse = {"-":"-","/":"/","Exp":"Log","Log":"Exp","Sin":"ArcSin"}
 new_term_rate_for_abelian_operators = 1-1/2
 non_const_exp_rate = 0.2
 non_x_rate_for_complicated_expressions = 0.9
-max_level = 30
+max_level = 50
 
 
 
@@ -54,7 +54,36 @@ class expression_tree:
 			self.expression = self.simplify(self.expression)
 			self.next = [expression_tree(lv = self.level,expression = expression)]
 	def simplify(self,expression):
-		return expression
+		#["+","*","^","-","/","Sqrt","Exp","Log","Sin","Cos","ArcSin","ArcTan","Erf"]
+		e = expression[1:].split(",")
+		change = True
+		while change:
+			change = False
+			for i in range(len(e)-1):
+				if e[i+1]=="-":
+					if e[i] in ("Sin","ArcSin","ArcSin","Arctan","Erf"):
+						e[i] , e[i+1] = e[i+1] , e[i]
+						change = True
+						break
+					if e[i] == "Cos":
+						e.pop(i+1)
+						change = True
+						break
+				if (e[i],e[i+1]) in (("-","-"),("/","/"),("Sin","ArcSin"),("ArcSin","Sin"),("Exp","Log"),("Log","Exp")):
+					e.pop(i)
+					e.pop(i)
+					change = True
+					break
+				if (e[i],e[i+1]) == ("/","Exp"):
+					e[i],e[i+1] = "Exp" , "-"
+					change = True
+					break
+				if (e[i],e[i+1]) == ("Log","/"):
+					e[i],e[i+1] = "-" , "Log"
+					change = True
+					break	
+
+		return ",".join(e)
 		
 
 
