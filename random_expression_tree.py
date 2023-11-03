@@ -9,7 +9,7 @@ inverse = {"-":"-","/":"/","Exp":"Log","Log":"Exp","Sin":"ArcSin"}
 new_term_rate_for_abelian_operators = 1-1/2
 non_const_exp_rate = 0.2
 non_x_rate_for_complicated_expressions = 0.9
-max_level = 50
+max_level = 10
 
 
 
@@ -51,9 +51,13 @@ class expression_tree:
 					expression = "X"
 				else:
 					expression = random.choices(element,weight)[0]
-			self.expression = self.simplify(self.expression)
-			self.next = [expression_tree(lv = self.level,expression = expression)]
-	def simplify(self,expression):
+			self.expression = self.simplify_uni(self.expression)
+			if not self.expression:
+				self.expression = "1"
+			else:
+				self.next = [expression_tree(lv = self.level,expression = expression)]
+
+	def simplify_uni(self,expression):
 		#["+","*","^","-","/","Sqrt","Exp","Log","Sin","Cos","ArcSin","ArcTan","Erf"]
 		e = expression[1:].split(",")
 		change = True
@@ -81,9 +85,60 @@ class expression_tree:
 				if (e[i],e[i+1]) == ("Log","/"):
 					e[i],e[i+1] = "-" , "Log"
 					change = True
-					break	
-
+					break
 		return ",".join(e)
+
+	def simplify(self):
+		k = 0
+		if self.expression in ("X","1","K"):
+			return 0
+		elif self.expression == "^":
+			k = self.next[0].simplify() + self.next[1].simplify()
+			if self.next[0].expression == "1" or self.next[1].expression== "1":
+				self.expression = "1"
+				self.next = []
+				return 1
+			else:
+				return k
+		elif self.expression not in ("+","*"):
+			k = self.next[0].simplify()
+			if self.next[0].expression == "1":
+				self.expression = "1"
+				self.next = []
+				return 1
+			else:
+				return k
+		else:
+			if len(self.next) == 1:
+				k = self.next[0].simplify()
+				self.expression = self.next[0].expression
+				self.next = self.next[0].next
+				return k
+			elif self.expression == "*":
+				for i in range(len(self.next)):
+					k += self.next[i].simplify()
+					if self.next[i].expression == "1":
+						self.next.pop(i)
+						return 1
+				#next: add x/x function here
+				return k
+			elif self.expression == "+":
+				for i in range(len(self.next)):
+					k += self.next[i].simplify()
+				return k
+			#next: add merge function here
+	
+
+	def tree_to_expression(expression_tree):
+		expression = [expression_tree.expression]
+
+		for term in expression_tree.next:
+			next_expression = tree_to_expression(term)
+			expression.append(next_expression)
+
+		return expression 
+
+		
 		
 
 
@@ -93,11 +148,9 @@ class expression_tree:
 def express_to_tree(expression):
 	return ""
 
-def simplify_expression(expression):
-	if len(expression)==1:
-		return expression
-	if expression[0] in inverse and inverse[expression[0]] == expression[1][0]:
-		return expression[1][1]
+	
+
+
 
 
 
@@ -106,21 +159,16 @@ def express_compare(expression_tree_1,expression_tree_2):
 
 def tree_to_expression(expression_tree):
 	expression = [expression_tree.expression]
-	E_1 = False
-	A_1  = True
+
 	for term in expression_tree.next:
 		next_expression = tree_to_expression(term)
-		if next_expression[0] != "1":
-			A_1 = False
-			expression.append(next_expression)
-		else:
-			if not E_1:
-				E_1 = True
-				expression.append(next_expression)
-	if A_1 and expression[0] != "X":
-		return ["1"]
+		expression.append(next_expression)
 
 	return expression 
 
 
-print(tree_to_expression(expression_tree()))
+exp = expression_tree()
+t = 1
+while t:
+	t = exp.simplify()
+	print(t,exp.tree_to_expression())
