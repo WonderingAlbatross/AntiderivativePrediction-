@@ -100,54 +100,16 @@ class expression_tree:
 			else:
 				self.next = [expression_tree(lv = level[expression]+self.rec_level),expression_tree(lv = level[expression]+self.rec_level)]
 		#rewrite this using forbid
-		elif expression in ("-","/","Sqrt","Exp","Log","Sin","Cos","ArcSin","ArcTan","Erf"):
-			self.expression = ""
-			while expression in ("-","/","Sqrt","Exp","Log","Sin","Cos","ArcSin","ArcTan","Erf"):
-				self.rec_level += level[expression]
-				self.expression += "," + expression
-				if self.rec_level > max_level:
-					expression = "X"
-				elif expression in ("Sqrt","Exp","Log","Sin","Cos","ArcSin","ArcTan","Erf") and random.random()>non_x_rate_for_complicated_expressions:
-					expression = "X"
-				else:
-					expression = random.choices(element,weight)[0]
-			self.expression = self.simplify_uni(self.expression)
-			if not self.expression:
-				self.expression = "1"
+		elif expression in ("-","/"):
+			self.next = [expression_tree(lv = level[expression]+self.rec_level,forbid = [expression])]
+		elif expression in ("Sqrt","Exp","Log","Sin","Cos","ArcSin","ArcTan","Erf"):
+			if random.random()>non_x_rate_for_complicated_expressions:
+				self.expression = "X"
 			else:
-				self.next = [expression_tree(lv = self.rec_level,expression = expression)]
+				self.next = [expression_tree(lv = level[expression]+self.rec_level,forbid = [expression])]
 
-	#remove this
-	def simplify_uni(self,expression):
-		#["+","*","^","-","/","Sqrt","Exp","Log","Sin","Cos","ArcSin","ArcTan","Erf"]
-		e = expression[1:].split(",")
-		change = True
-		while change:
-			change = False
-			for i in range(len(e)-1):
-				if e[i+1]=="-":
-					if e[i] in ("/","Sin","ArcSin","ArcSin","Arctan","Erf"):
-						e[i] , e[i+1] = e[i+1] , e[i]
-						change = True
-						break
-					if e[i] == "Cos":
-						e.pop(i+1)
-						change = True
-						break
-				if (e[i],e[i+1]) in (("-","-"),("/","/"),("Sin","ArcSin"),("ArcSin","Sin"),("Exp","Log"),("Log","Exp")):
-					e.pop(i)
-					e.pop(i)
-					change = True
-					break
-				if (e[i],e[i+1]) == ("/","Exp"):
-					e[i],e[i+1] = "Exp" , "-"
-					change = True
-					break
-				if (e[i],e[i+1]) == ("Log","/"):
-					e[i],e[i+1] = "-" , "Log"
-					change = True
-					break
-		return ",".join(e)
+
+
 
 	def simplify(self):
 		k = 0
@@ -167,9 +129,24 @@ class expression_tree:
 				self.expression = "1"
 				self.next = []
 				return 1
-			else:
-				#if self.expression == "" and self.next[0].expression == "":
-				return k
+			elif self.expression in forbid and forbid[self.expression] == self.next[0].expression:
+				self.expression = self.next[0].next[0].expression
+				self.next = self.next[0].next[0].next
+				return 1
+			elif self.expression == "/" and self.next[0].expression == "Exp":
+				self.expression, self.next[0].expression = "Exp", "-"
+				return 1
+			elif self.expression == "Log" and self.next[0].expression == "/":
+				self.expression, self.next[0].expression = "-", "Log"
+				return 1
+			elif self.expression in ("Sin","ArcSin","ArcTan","Erf") and self.next[0].expression == "-":
+				self.expression, self.next[0].expression = self.next[0].expression, self.expression
+				return 1
+			elif self.expression == "Cos" and self.next[0].expression == "-":
+				self.next[0] = self.next[0].next[0]
+				return 1
+			return k
+
 		else:
 			if len(self.next) == 1:
 				k = self.next[0].simplify()
