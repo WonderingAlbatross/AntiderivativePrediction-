@@ -3,24 +3,25 @@ from functools import cmp_to_key
 
 element = ["+","*","^","-","/","Sqrt","Exp","Log","Sin","Cos","ArcSin","ArcTan","Erf","X","1"]
 
-weight = [10,20,1,10,10,3,5,3,3,3,1,1,1,10,20]
+weight = [10,20,50,10,50,3,5,3,3,3,1,1,1,10,20]
 level = {"+": 5, "*": 5, "^": 20, "-": 1, "/": 3, "Sqrt": 15, "Exp": 10, "Log": 10, "Sin": 5, "Cos": 5, "ArcSin": 25, "ArcTan": 25, "Erf": 25}
 forbid = {"+":"+","*":"*","-":"-","/":"/","Exp":"Log","Log":"Exp","Sin":"ArcSin"}
 inverse = {"-":"-","/":"/","Exp":"Log","Log":"Exp","Sin":"ArcSin"}
 
 new_term_rate_for_abelian_operators = 1-1/2
-non_const_exp_rate = 0.2
+non_const_exp_rate = 1
 non_x_rate_for_complicated_expressions = 0.9
-max_level = 10
+max_level = 30
+
 
 
 
 
 class expression_tree:
-	def __init__(self,lv = 0, expression = "",forbid = []):
+	def __init__(self,lv = 0, expression = "",forbid = [], next_trees = []):
 		self.rec_level = lv
 		self.weight = 0
-		self.next = []
+		self.next = next_trees
 		self.expression = ""
 		if expression:
 			self.expression = expression
@@ -51,6 +52,15 @@ class expression_tree:
 				return True
 
 	def __gt__(self, other):
+		if self.expression == "/" and other.expression != "/":
+			return True
+		if self.expression != "/" and other.expression == "/":
+			return False
+		if self.expression == "-":
+			return self.next[0] > other
+		if other.expression == "-":
+			return self > other.next[0]
+
 		if self.expression != other.expression:
 			return self.expression > other.expression
 		else:	
@@ -66,6 +76,14 @@ class expression_tree:
 
 
 	def __lt__(self, other):
+		if self.expression != "/" and other.expression == "/":
+			return True
+		if self.expression == "/" and other.expression != "/":
+			return False
+		if self.expression == "-":
+			return self.next[0] < other
+		if other.expression == "-":
+			return self < other.next[0]
 		if self.expression != other.expression:
 			return self.expression < other.expression
 		else:	
@@ -117,9 +135,18 @@ class expression_tree:
 			return 0
 		elif self.expression == "^":
 			k = self.next[0].simplify() + self.next[1].simplify()
-			if self.next[0].expression == "1" or self.next[1].expression== "1":
+			if self.next[0].expression == "1":
 				self.expression = "1"
 				self.next = []
+				return 1
+			elif self.next[1].expression== "1":
+				self.expression = self.next[0].expression
+				self.next = self.next[0].next
+				return 1
+			elif self.next[0].expression == "/":
+				self.expression, self.next[0].expression = "/", "^"
+				self.next[0].next.append(self.next.pop(1))
+				print("check")
 				return 1
 			else:
 				return k
@@ -145,16 +172,17 @@ class expression_tree:
 			elif self.expression == "Cos" and self.next[0].expression == "-":
 				self.next[0] = self.next[0].next[0]
 				return 1
-			elif self.expression == "-" and self.next[0].expression == "+":
-				pass
 			return k
-
+##-+,/*,*+.+*
 		else:
+			if len(self.next) == 0:
+				self.expression = "1"
+				self.next = []
+				return 1
 			if len(self.next) == 1:
-				k = self.next[0].simplify()
 				self.expression = self.next[0].expression
 				self.next = self.next[0].next
-				return k
+				return 1
 			elif self.expression == "*":
 				for i in range(len(self.next)):
 					if self.next[i].expression == "-":
@@ -205,8 +233,7 @@ class expression_tree:
 	def tree_to_expression(self):
 		expression = [self.expression]
 		for term in self.next:
-			next_expression = term.tree_to_expression()
-			expression.append(next_expression)
+			expression.append(term.tree_to_expression())
 		return expression 
 
 	def recalculate_level(self,value = 0):
@@ -227,31 +254,38 @@ class expression_tree:
 			self.weight += expression.recalculate_weight()
 		return self.weight
 
-	def tree_to_wolfram(self):
+	def tree_to_wolfram(self,sup_exp = ""):
 		if self.expression in ("X","1","K"):
 			temp = self.expression
 		elif self.expression == "-":
-			temp = self.expression +"("+ self.next[0].tree_to_wolfram() + ")"
+			temp = self.expression +self.next[0].tree_to_wolfram(self.expression)
+			if sup_exp == "^":
+				temp = "("+ temp+ ")"	
 		elif self.expression == "/":
-			temp = "1" + self.expression +"("+ self.next[0].tree_to_wolfram() + ")"			
+			temp = "1" + self.expression + self.next[0].tree_to_wolfram(self.expression)
+			if sup_exp == "^":
+				temp = "("+ temp+ ")"	
 		elif self.expression == "*":
-			temp = self.expression.join([next_expression.tree_to_wolfram() for next_expression in self.next])	
+			temp = self.expression.join([next_expression.tree_to_wolfram(self.expression) for next_expression in self.next])
+			temp = temp.replace("*1/","/")
+			if sup_exp in ("/","^"):
+				temp = "("+ temp+ ")"
 		elif self.expression == "+":
-			temp = "(" + self.expression.join([next_expression.tree_to_wolfram() for next_expression in self.next]) + ")"
+			temp = self.expression.join([next_expression.tree_to_wolfram(self.expression) for next_expression in self.next])
+			if sup_exp in ("-","*","/","^"):
+				temp = "("+ temp+ ")"
 		elif self.expression == "^":
-			temp = "("+ self.next[0].tree_to_wolfram() + ")"+ self.expression +"("+ self.next[1].tree_to_wolfram() + ")"
+			temp = self.next[0].tree_to_wolfram(self.expression) + self.expression + self.next[1].tree_to_wolfram(self.expression)
+			if sup_exp == "^":
+				temp = "("+ temp+ ")"			
 		else:
-			temp = self.next[0].tree_to_wolfram()
-			if temp[0] == "(":
-				temp = temp[1:-1]
+			temp = self.next[0].tree_to_wolfram(self.expression)
 			temp = self.expression +"["+ temp+ "]"	
 
-		temp.replace("*1/","/")
-		temp.replace("(1)","1")
-		temp.replace("(K)","K")
-		temp.replace("(X)","X")
+
 		# bracket need optimization
 		return temp
+
 
 
 			
@@ -273,10 +307,12 @@ def express_to_tree(expression):
 
 
 
-
 exp = expression_tree()
 t = 1
 while t:
-	t = exp.simplify()
+	
 	print(exp.tree_to_expression())
 	print(exp.tree_to_wolfram())
+	t = exp.simplify()
+print(exp.tree_to_expression())
+print(exp.tree_to_wolfram())
